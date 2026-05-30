@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>尚鵬內湖頂樓車輛調度系統 v3.58 </title>
+    <title>廠長頂樓車輛調度系統 v4.0 ── 手機觸控與電腦雙模通用版</title>
     <style>
-        /* 全局剛性死鎖：徹底封殺任何溢出與滑動捲軸 */
+        /* 全局剛性死鎖：一頁式美學，徹底封殺滑動捲軸 */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Helvetica Neue", Arial, sans-serif; }
         body { 
             background: #0f172a; color: #f8fafc; display: flex; flex-direction: column; 
@@ -42,7 +42,7 @@
         }
 
         /* ========================================================
-           🚨 全廠直立格規格：寬 50px，高 100px
+           🚨 全廠直立車位基本規格：寬度 50px，高度 100px
            ======================================================== */
         .base-slot-spec {
             width: 50px !important; height: 100px !important; border-radius: 6px;
@@ -50,7 +50,8 @@
             font-size: 0.65rem; font-weight: bold; position: relative; transition: all 0.2s;
             box-shadow: inset 0 4px 6px rgba(0,0,0,0.3);
         }
-        .base-slot-spec.drag-over { background: rgba(56, 189, 248, 0.2) !important; border: 2px solid #38bdf8 !important; }
+        /* 🚨 手機點選模式下的高亮提示（亮起電控藍光） */
+        .base-slot-spec.drag-over, .slot-highlight { background: rgba(56, 189, 248, 0.25) !important; border: 2px solid #38bdf8 !important; }
 
         /* ========================================================
            🚨 右側 R 區橫向格「真長方形」容器規格 (寬 100px × 高 50px)
@@ -61,7 +62,7 @@
             font-size: 0.65rem; font-weight: bold; position: relative; transition: all 0.2s;
             box-shadow: inset 0 4px 6px rgba(0,0,0,0.3);
         }
-        .right-slot-spec.drag-over { background: rgba(56, 189, 248, 0.2) !important; border: 2px solid #38bdf8 !important; }
+        .right-slot-spec.drag-over, .right-slot-spec.slot-highlight { background: rgba(56, 189, 248, 0.25) !important; border: 2px solid #38bdf8 !important; }
 
         /* 車位代號文字底層固定樣式 */
         .slot-label { position: absolute; z-index: 1; pointer-events: none; }
@@ -70,7 +71,7 @@
         .cement-slot-spec { background: #334155; border: 1px dashed #38bdf8; color: rgba(56, 189, 248, 0.4); } 
         .lawn-slot-spec { background: #14532d; border: 1px dashed #4ade80; color: rgba(74, 222, 128, 0.4); } 
 
-        /* 草皮配置 */
+        /* 草皮與周邊配置 */
         .top-lawn { position: absolute; top: 0; left: 0; width: 100%; height: 140px; background: #064e3b; border-bottom: 4px solid #047857; z-index: 10; }
         .right-lawn { position: absolute; right: 0; top: 140px; bottom: 0; width: 85px; background: #064e3b; border-left: 3px solid #047857; z-index: 10; }
 
@@ -78,7 +79,7 @@
         .top-matrix-container { position: absolute; top: 15px; left: 0; width: calc(100% - 85px); display: flex; flex-direction: column; gap: 15px; padding: 0 12px; z-index: 12; }
         .top-row-grid { display: grid; grid-template-columns: repeat(13, 50px); justify-content: space-between; width: 100%; }
 
-        /* 右側 R1-R3 鋼骨外框 — 與下方 B5、B6 留出安全走道 */
+        /* 右側 R1-R3 鋼骨外框 — 與下方 B5、B6 劃清界線、絕不壓位 */
         .right-slots-container { 
             position: absolute; right: 85px; top: 265px; width: 120px; height: 180px !important;
             display: flex; flex-direction: column; gap: 10px !important; z-index: 25; 
@@ -119,11 +120,14 @@
             text-indent: -9999px; z-index: 5; position: absolute; top: 0; left: 0;
         }
         
-        /* 庫房展示盒 */
+        /* 庫房專用展示盒 */
         .template-wrapper {
             width: 42px; height: 84px; background: #0f172a; border-radius: 6px; border: 1px solid #334155;
             overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+            transition: all 0.2s;
         }
+        /* 🚨 手機選中車種時的外框發光效果 */
+        .template-selected { border: 2px solid #38bdf8 !important; box-shadow: 0 0 10px #38bdf8 !important; background: rgba(56, 189, 248, 0.1); }
 
         /* 🚨 橫向格專用逆時針 90 度翻轉，車頭向左開 */
         .rotated { 
@@ -136,7 +140,7 @@
 <body>
 
     <div class="header">
-        <h1>尚鵬內湖頂樓車輛調度系統 v3.58 </h1>
+        <h1>尚鵬內湖頂樓廠務實時調度系統 v4.0 </h1>
         <div class="user-badge">廠長專用權限</div>
     </div>
 
@@ -211,7 +215,6 @@
                 <div class="template-wrapper">
                     <div class="car-model" draggable="true" id="tmpl-2008-white" style="background-image: url('https://i.meee.com.tw/LBdrZiR.png');"></div>
                 </div>
-                
                 <div class="template-wrapper">
                     <div class="car-model" draggable="true" id="tmpl-new-car-3" style="background-image: url('https://i.meee.com.tw/nWaWsBy.png');"></div>
                 </div>
@@ -237,11 +240,11 @@
         </div>
     </div>
 
-    <script {rule1-strict-completion}>
+    <script>
         const slots = document.querySelectorAll('.base-slot-spec, .right-slot-spec');
         const canvas = document.querySelector('.roof-canvas');
 
-        // 庫房實車圖片對照表 (含新加入的 2008 白色)
+        // 庫房實車圖片對照表
         const carImages = {
             'tmpl-2008-white': 'https://i.meee.com.tw/LBdrZiR.png',
             'tmpl-new-car-3' : 'https://i.meee.com.tw/nWaWsBy.png',
@@ -253,65 +256,125 @@
             'tmpl-latest-car': 'https://i.meee.com.tw/BiipLtA.png'
         };
 
+        // 🚨 手機端「選中模式」專用暫存變數
+        let activeSelectedTemplateId = null;
+
+        // 永續記憶引擎啟動
         window.addEventListener('DOMContentLoaded', loadFactoryMemory);
 
+        // 初始化所有庫存範本的事件（滑鼠拖曳 + 手機點選）
         document.querySelectorAll('.template-wrapper .car-model').forEach(tmpl => {
+            // 電腦版：傳統拖曳
             tmpl.addEventListener('dragstart', function(e) {
                 e.dataTransfer.setData('text/plain', this.id);
                 e.dataTransfer.setData('source', 'template');
             });
+
+            // 🚨 手機/電腦版通用：單擊選中模式
+            tmpl.parentElement.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const targetModel = this.querySelector('.car-model');
+                
+                // 如果點擊已選中的，就取消選擇
+                if (activeSelectedTemplateId === targetModel.id) {
+                    this.classList.remove('template-selected');
+                    activeSelectedTemplateId = null;
+                    clearSlotHighlights();
+                } else {
+                    // 清除前一個選中的高亮
+                    document.querySelectorAll('.template-wrapper').forEach(w => w.classList.remove('template-selected'));
+                    // 鎖定當前選中
+                    this.classList.add('template-selected');
+                    activeSelectedTemplateId = targetModel.id;
+                    addSlotHighlights();
+                }
+            });
         });
 
+        // 提示車位高亮輔助
+        function addSlotHighlights() {
+            slots.forEach(s => s.classList.add('slot-highlight'));
+        }
+        function clearSlotHighlights() {
+            slots.forEach(s => s.classList.remove('slot-highlight'));
+        }
+
+        // 格位調度核心引擎
         slots.forEach(slot => {
             slot.addEventListener('dragover', e => e.preventDefault());
             slot.addEventListener('dragenter', function() { this.classList.add('drag-over'); });
             slot.addEventListener('dragleave', function() { this.classList.remove('drag-over'); });
+            
+            // 電腦版：拖曳放下
             slot.addEventListener('drop', dragDropEngine);
+
+            // 🚨 手機/電腦通用：點擊格子進行「派遣塞車」
+            slot.addEventListener('click', function(e) {
+                // 如果當前有選中的範本，執行無感部署
+                if (activeSelectedTemplateId) {
+                    e.stopPropagation();
+                    executeVehicleDeployment(this, activeSelectedTemplateId);
+                    
+                    // 部署完畢後，解除選中，回歸純淨
+                    document.querySelectorAll('.template-wrapper').forEach(w => w.classList.remove('template-selected'));
+                    activeSelectedTemplateId = null;
+                    clearSlotHighlights();
+                }
+            });
         });
 
+        // 拖曳放下處理
         function dragDropEngine(e) {
             this.classList.remove('drag-over');
             const id = e.dataTransfer.getData('text/plain');
             const source = e.dataTransfer.getData('source');
             
-            let carToPlace;
             if (source === 'template') {
-                const template = document.getElementById(id);
-                carToPlace = template.cloneNode(true);
-                carToPlace.id = 'car-' + Date.now();
-                carToPlace.setAttribute('data-origin-id', id);
-                
-                carToPlace.style.width = "100%";
-                carToPlace.style.height = "100%";
-                
-                carToPlace.addEventListener('click', function(ev) {
-                    ev.stopPropagation(); 
-                    this.remove(); 
-                    saveFactoryMemory(); 
-                });
-
-                carToPlace.addEventListener('dragstart', function(ev) {
-                    ev.dataTransfer.setData('text/plain', this.id);
-                    ev.dataTransfer.setData('source', 'deployed');
-                });
-            } else {
-                carToPlace = document.getElementById(id);
-            }
-
-            if (carToPlace) {
-                const existingCar = this.querySelector('.car-model');
-                if (existingCar) existingCar.remove();
-                
-                if (this.classList.contains('right-slot-spec')) {
-                    carToPlace.classList.add('rotated');
-                } else {
-                    carToPlace.classList.remove('rotated');
-                }
-                this.appendChild(carToPlace);
-                saveFactoryMemory(); 
+                executeVehicleDeployment(this, id);
             }
         }
 
+        // 🚨 統一物理部署與幾何控制核心
+        function executeVehicleDeployment(targetSlot, templateId) {
+            const template = document.getElementById(templateId);
+            if (!template) return;
+
+            const carToPlace = template.cloneNode(true);
+            carToPlace.id = 'car-' + Date.now();
+            carToPlace.setAttribute('data-origin-id', templateId);
+            
+            carToPlace.style.width = "100%";
+            carToPlace.style.height = "100%";
+            
+            // 點擊即刻回收
+            carToPlace.addEventListener('click', function(ev) {
+                ev.stopPropagation(); 
+                this.remove(); 
+                saveFactoryMemory(); 
+            });
+
+            // 允許在格子間再次被拖曳
+            carToPlace.addEventListener('dragstart', function(ev) {
+                ev.dataTransfer.setData('text/plain', this.id);
+                ev.dataTransfer.setData('source', 'deployed');
+            });
+
+            // 覆蓋舊車
+            const existingCar = targetSlot.querySelector('.car-model');
+            if (existingCar) existingCar.remove();
+            
+            // 真橫向容器與直立容器的自適應幾何判定
+            if (targetSlot.classList.contains('right-slot-spec')) {
+                carToPlace.classList.add('rotated');
+            } else {
+                carToPlace.classList.remove('rotated');
+            }
+            
+            targetSlot.appendChild(carToPlace);
+            saveFactoryMemory(); 
+        }
+
+        // 空白處回收
         canvas.addEventListener('dragover', e => e.preventDefault());
         canvas.addEventListener('drop', function(e) {
             const id = e.dataTransfer.getData('text/plain');
@@ -325,6 +388,15 @@
             }
         });
 
+        // 點擊畫布空白處清空選中狀態
+        canvas.addEventListener('click', function() {
+            if (activeSelectedTemplateId) {
+                document.querySelectorAll('.template-wrapper').forEach(w => w.classList.remove('template-selected'));
+                activeSelectedTemplateId = null;
+                clearSlotHighlights();
+            }
+        });
+
         function saveFactoryMemory() {
             const memoryData = {};
             slots.forEach(slot => {
@@ -335,11 +407,11 @@
                     memoryData[slotId] = originId;
                 }
             });
-            localStorage.setItem('Soros_Factory_Grid_v3.58', JSON.stringify(memoryData));
+            localStorage.setItem('Soros_Factory_Grid_v4.0', JSON.stringify(memoryData));
         }
 
         function loadFactoryMemory() {
-            const rawMemory = localStorage.getItem('Soros_Factory_Grid_v3.58');
+            const rawMemory = localStorage.getItem('Soros_Factory_Grid_v4.0');
             if (!rawMemory) return;
             
             const memoryData = JSON.parse(rawMemory);
