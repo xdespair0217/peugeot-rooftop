@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>廠長頂樓車輛調度系統 v3.58 ── 2008白色入庫與永續記憶版</title>
+    <style>
+        /* 全局剛性死鎖：徹底封殺任何溢出與滑動捲軸 */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Helvetica Neue", Arial, sans-serif; }
+        body { 
+            background: #0f172a; color: #f8fafc; display: flex; flex-direction: column; 
+            height: 100vh; width: 100vw; overflow: hidden !important; 
+        }
+        
+        /* 系統頂欄 */
+        .header { background: #1e293b; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.3); height: 50px; }
+        .header h1 { font-size: 1.1rem; font-weight: 600; color: #f1f5f9; }
+        .header .user-badge { background: #0f172a; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; color: #38bdf8; border: 1px solid #1e3a8a; }
+
+        /* 主畫面區 */
+        .main-container { 
+            flex: 1; display: flex; padding: 15px; gap: 15px; max-width: 1600px; width: 100%; margin: 0 auto; 
+            height: calc(100vh - 50px); overflow: hidden !important; 
+        }
+        
+        /* 頂樓平面圖主畫布 */
+        .roof-canvas { flex: 1; background: #0f172a; border-radius: 12px; border: 2px solid #334155; position: relative; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* 右側範本面版 */
+        .inventory-panel { 
+            width: 230px; background: #1e293b; border-radius: 12px; border: 2px solid #334155; 
+            padding: 12px; display: flex; flex-direction: column; gap: 10px; 
+            height: 100%; overflow: hidden !important; 
+        }
+        .inventory-title { font-size: 0.95rem; font-weight: bold; color: #f1f5f9; border-bottom: 2px solid #334155; padding-bottom: 6px; }
+        
+        /* 車種範本網格 */
+        .car-pool { 
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; 
+            flex: 1; min-height: 0; align-items: center; justify-items: center; 
+            overflow: hidden !important; 
+        }
+
+        /* ========================================================
+           🚨 全廠直立格規格：寬 50px，高 100px
+           ======================================================== */
+        .base-slot-spec {
+            width: 50px !important; height: 100px !important; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.65rem; font-weight: bold; position: relative; transition: all 0.2s;
+            box-shadow: inset 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .base-slot-spec.drag-over { background: rgba(56, 189, 248, 0.2) !important; border: 2px solid #38bdf8 !important; }
+
+        /* ========================================================
+           🚨 右側 R 區橫向格「真長方形」容器規格 (寬 100px × 高 50px)
+           ======================================================== */
+        .right-slot-spec {
+            width: 100px !important; height: 50px !important; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.65rem; font-weight: bold; position: relative; transition: all 0.2s;
+            box-shadow: inset 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .right-slot-spec.drag-over { background: rgba(56, 189, 248, 0.2) !important; border: 2px solid #38bdf8 !important; }
+
+        /* 車位代號文字底層固定樣式 */
+        .slot-label { position: absolute; z-index: 1; pointer-events: none; }
+
+        /* 深色材質底色 */
+        .cement-slot-spec { background: #334155; border: 1px dashed #38bdf8; color: rgba(56, 189, 248, 0.4); } 
+        .lawn-slot-spec { background: #14532d; border: 1px dashed #4ade80; color: rgba(74, 222, 128, 0.4); } 
+
+        /* 草皮配置 */
+        .top-lawn { position: absolute; top: 0; left: 0; width: 100%; height: 140px; background: #064e3b; border-bottom: 4px solid #047857; z-index: 10; }
+        .right-lawn { position: absolute; right: 0; top: 140px; bottom: 0; width: 85px; background: #064e3b; border-left: 3px solid #047857; z-index: 10; }
+
+        /* 頂部陣列大容器 */
+        .top-matrix-container { position: absolute; top: 15px; left: 0; width: calc(100% - 85px); display: flex; flex-direction: column; gap: 15px; padding: 0 12px; z-index: 12; }
+        .top-row-grid { display: grid; grid-template-columns: repeat(13, 50px); justify-content: space-between; width: 100%; }
+
+        /* 右側 R1-R3 鋼骨外框 — 與下方 B5、B6 留出安全走道 */
+        .right-slots-container { 
+            position: absolute; right: 85px; top: 265px; width: 120px; height: 180px !important;
+            display: flex; flex-direction: column; gap: 10px !important; z-index: 25; 
+            background: #1e293b; padding: 12px 10px; border-radius: 0 0 6px 6px; 
+            border-bottom: 2px solid #334155; border-left: 2px solid #334155; align-items: center; 
+        }
+
+        /* 中央雙平行通道 */
+        .center-channel-container { position: absolute; top: 265px; left: 0; right: 205px; height: 240px; display: flex; flex-direction: column; z-index: 8; }
+        .parallel-highway { flex: 1; background: #1e293b; border: 1px solid #334155; display: flex; align-items: center; padding-left: 40px; color: #475569; font-weight: bold; letter-spacing: 4px; }
+        .parallel-highway:first-child { border-bottom: 2px dashed #334155; }
+
+        /* 底部綜合材質總容器 */
+        .bottom-slots-container { position: absolute; bottom: 15px; right: 85px; width: 430px; height: 350px; display: flex; flex-direction: column; justify-content: space-between; z-index: 15; }
+        
+        /* 前排水泥區 B1-B6 靠左死鎖對齊 */
+        .bottom-front-cement { 
+            background: #1e293b; padding: 10px; border-top: 2px solid #334155; border-left: 2px solid #334155; 
+            border-radius: 6px 0 0 0; display: flex; justify-content: flex-start; 
+            gap: 20px !important; 
+            width: 100%; height: 120px; 
+        }
+        
+        /* 底部後排草皮區 */
+        .bottom-rear-lawn { background: #064e3b; padding: 10px; border: 2px solid #047857; border-radius: 6px 0 0 6px; display: flex; flex-direction: column; gap: 10px !important; width: 100%; height: 220px; }
+        .bottom-row { display: flex; justify-content: flex-start; gap: 20px !important; width: 100%; }
+
+        /* 左下角雙電梯 */
+        .elevator-zone { position: absolute; bottom: 120px; left: 30px; display: flex; gap: 15px; background: #1e293b; padding: 10px; border-radius: 10px; border: 2px solid #334155; box-shadow: 0 8px 16px rgba(0,0,0,0.5); z-index: 30; }
+        .elevator { width: 90px; height: 90px; background: #0f172a; border: 2px solid #1e3a8a; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #38bdf8; font-size: 0.8rem; }
+
+        /* 實車影像基礎規格 */
+        .car-model {
+            width: 100% !important; height: 100% !important; cursor: grab; user-select: none;
+            background-size: contain; background-repeat: no-repeat; background-position: center;
+            background-color: transparent !important; 
+            display: flex; align-items: center; justify-content: center;
+            text-indent: -9999px; z-index: 5; position: absolute; top: 0; left: 0;
+        }
+        
+        /* 庫房展示盒 */
+        .template-wrapper {
+            width: 42px; height: 84px; background: #0f172a; border-radius: 6px; border: 1px solid #334155;
+            overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+        }
+
+        /* 🚨 橫向格專用逆時針 90 度翻轉，車頭向左開 */
+        .rotated { 
+            width: 100% !important;
+            height: 100% !important;
+            transform: rotate(-90deg) !important; 
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>頂樓廠務實時調度系統 v3.58 ── 2008白色入庫與永續記憶版</h1>
+        <div class="user-badge">廠長專用權限</div>
+    </div>
+
+    <div class="main-container">
+        <div class="roof-canvas">
+            <div class="top-lawn"></div>
+            <div class="right-lawn"></div>
+            
+            <div class="top-matrix-container">
+                <div class="top-row-grid">
+                    <script>
+                        for(let i=1; i<=13; i++) {
+                            document.write(`<div class="base-slot-spec lawn-slot-spec" data-slot-id="P${i}-L"><span class="slot-label">P${i}草</span></div>`);
+                        }
+                    </script>
+                </div>
+                <div class="top-row-grid" style="background: #1e293b; padding: 12px 0;">
+                    <script>
+                        for(let i=1; i<=13; i++) {
+                            document.write(`<div class="base-slot-spec cement-slot-spec" data-slot-id="P${i}"><span class="slot-label">P${i}</span></div>`);
+                        }
+                    </script>
+                </div>
+            </div>
+            
+            <div class="right-slots-container">
+                <div class="right-slot-spec cement-slot-spec" data-slot-id="R1"><span class="slot-label">R1</span></div>
+                <div class="right-slot-spec cement-slot-spec" data-slot-id="R2"><span class="slot-label">R2</span></div>
+                <div class="right-slot-spec cement-slot-spec" data-slot-id="R3"><span class="slot-label">R3</span></div>
+            </div>
+            
+            <div class="center-channel-container">
+                <div class="parallel-highway">【 長 型 平 行 走 道 1 】</div>
+                <div class="parallel-highway">【 長 型 平 行 走 道 2 】</div>
+            </div>
+            
+            <div class="bottom-slots-container">
+                <div class="bottom-front-cement">
+                    <script>
+                        for(let i=1; i<=6; i++) {
+                            document.write(`<div class="base-slot-spec cement-slot-spec" data-slot-id="B${i}"><span class="slot-label">B${i}</span></div>`);
+                        }
+                    </script>
+                </div>
+                <div class="bottom-rear-lawn">
+                    <div class="bottom-row">
+                        <script>
+                            for(let i=1; i<=6; i++) {
+                                document.write(`<div class="base-slot-spec lawn-slot-spec" data-slot-id="B${i}-X"><span class="slot-label">B${i}後①</span></div>`);
+                            }
+                        </script>
+                    </div>
+                    <div class="bottom-row">
+                        <script>
+                            for(let i=1; i<=4; i++) {
+                                document.write(`<div class="base-slot-spec lawn-slot-spec" data-slot-id="B${i}-Y"><span class="slot-label">B${i}後②</span></div>`);
+                            }
+                        </script>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="elevator-zone">
+                <div class="elevator">電梯 1</div>
+                <div class="elevator">電梯 2</div>
+            </div>
+        </div>
+
+        <div class="inventory-panel">
+            <div class="inventory-title">車種標準範本</div>
+            <div class="car-pool">
+                <div class="template-wrapper">
+                    <div class="car-model" draggable="true" id="tmpl-2008-white" style="background-image: url('https://i.meee.com.tw/LBdrZiR.png');"></div>
+                </div>
+                
+                <div class="template-wrapper">
+                    <div class="car-model" draggable="true" id="tmpl-new-car-3" style="background-image: url('https://i.meee.com.tw/nWaWsBy.png');"></div>
+                </div>
+                <div class="template-wrapper">
+                    <div class="car-model" draggable="true" id="tmpl-new-car-4" style="background-image: url('https://i.meee.com.tw/pUk95CQ.png');"></div>
+                </div>
+                <div class="template-wrapper">
+                    <div class="car-model" draggable="true" id="tmpl-new-car-1" style="background-image: url('https://i.meee.com.tw/WmfdyZD.png');"></div>
+                </div>
+                <div class="template-wrapper">
+                    <div class="car-model" draggable="true" id="tmpl-new-car-2" style="background-image: url('https://i.meee.com.tw/5xcsC7L.png');"></div>
+                </div>
+                <div class="template-wrapper">
+                    <div class="car-model" draggable="true" id="tmpl-white-suv" style="background-image: url('https://i.meee.com.tw/V7DvCd8.png');"></div>
+                </div>
+                <div class="template-wrapper">
+                    <div class="car-model" draggable="true" id="tmpl-blue-car" style="background-image: url('https://i.meee.com.tw/IN7Sz3Q.png');"></div>
+                </div>
+                <div class="template-wrapper">
+                    <div class="car-model" draggable="true" id="tmpl-latest-car" style="background-image: url('https://i.meee.com.tw/BiipLtA.png');"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script {rule1-strict-completion}>
+        const slots = document.querySelectorAll('.base-slot-spec, .right-slot-spec');
+        const canvas = document.querySelector('.roof-canvas');
+
+        // 庫房實車圖片對照表 (含新加入的 2008 白色)
+        const carImages = {
+            'tmpl-2008-white': 'https://i.meee.com.tw/LBdrZiR.png',
+            'tmpl-new-car-3' : 'https://i.meee.com.tw/nWaWsBy.png',
+            'tmpl-new-car-4' : 'https://i.meee.com.tw/pUk95CQ.png',
+            'tmpl-new-car-1' : 'https://i.meee.com.tw/WmfdyZD.png',
+            'tmpl-new-car-2' : 'https://i.meee.com.tw/5xcsC7L.png',
+            'tmpl-white-suv' : 'https://i.meee.com.tw/V7DvCd8.png',
+            'tmpl-blue-car'  : 'https://i.meee.com.tw/IN7Sz3Q.png',
+            'tmpl-latest-car': 'https://i.meee.com.tw/BiipLtA.png'
+        };
+
+        window.addEventListener('DOMContentLoaded', loadFactoryMemory);
+
+        document.querySelectorAll('.template-wrapper .car-model').forEach(tmpl => {
+            tmpl.addEventListener('dragstart', function(e) {
+                e.dataTransfer.setData('text/plain', this.id);
+                e.dataTransfer.setData('source', 'template');
+            });
+        });
+
+        slots.forEach(slot => {
+            slot.addEventListener('dragover', e => e.preventDefault());
+            slot.addEventListener('dragenter', function() { this.classList.add('drag-over'); });
+            slot.addEventListener('dragleave', function() { this.classList.remove('drag-over'); });
+            slot.addEventListener('drop', dragDropEngine);
+        });
+
+        function dragDropEngine(e) {
+            this.classList.remove('drag-over');
+            const id = e.dataTransfer.getData('text/plain');
+            const source = e.dataTransfer.getData('source');
+            
+            let carToPlace;
+            if (source === 'template') {
+                const template = document.getElementById(id);
+                carToPlace = template.cloneNode(true);
+                carToPlace.id = 'car-' + Date.now();
+                carToPlace.setAttribute('data-origin-id', id);
+                
+                carToPlace.style.width = "100%";
+                carToPlace.style.height = "100%";
+                
+                carToPlace.addEventListener('click', function(ev) {
+                    ev.stopPropagation(); 
+                    this.remove(); 
+                    saveFactoryMemory(); 
+                });
+
+                carToPlace.addEventListener('dragstart', function(ev) {
+                    ev.dataTransfer.setData('text/plain', this.id);
+                    ev.dataTransfer.setData('source', 'deployed');
+                });
+            } else {
+                carToPlace = document.getElementById(id);
+            }
+
+            if (carToPlace) {
+                const existingCar = this.querySelector('.car-model');
+                if (existingCar) existingCar.remove();
+                
+                if (this.classList.contains('right-slot-spec')) {
+                    carToPlace.classList.add('rotated');
+                } else {
+                    carToPlace.classList.remove('rotated');
+                }
+                this.appendChild(carToPlace);
+                saveFactoryMemory(); 
+            }
+        }
+
+        canvas.addEventListener('dragover', e => e.preventDefault());
+        canvas.addEventListener('drop', function(e) {
+            const id = e.dataTransfer.getData('text/plain');
+            const source = e.dataTransfer.getData('source');
+            if (source === 'deployed') {
+                const car = document.getElementById(id);
+                if (car) {
+                    car.remove();
+                    saveFactoryMemory(); 
+                }
+            }
+        });
+
+        function saveFactoryMemory() {
+            const memoryData = {};
+            slots.forEach(slot => {
+                const slotId = slot.getAttribute('data-slot-id');
+                const car = slot.querySelector('.car-model');
+                if (car) {
+                    const originId = car.getAttribute('data-origin-id') || car.id;
+                    memoryData[slotId] = originId;
+                }
+            });
+            localStorage.setItem('Soros_Factory_Grid_v3.58', JSON.stringify(memoryData));
+        }
+
+        function loadFactoryMemory() {
+            const rawMemory = localStorage.getItem('Soros_Factory_Grid_v3.58');
+            if (!rawMemory) return;
+            
+            const memoryData = JSON.parse(rawMemory);
+            slots.forEach(slot => {
+                const slotId = slot.getAttribute('data-slot-id');
+                const originId = memoryData[slotId];
+                
+                if (originId && carImages[originId] !== undefined) {
+                    const restoredCar = document.createElement('div');
+                    restoredCar.className = 'car-model';
+                    restoredCar.id = 'car-restored-' + Math.random().toString(36).substr(2, 9);
+                    restoredCar.setAttribute('data-origin-id', originId);
+                    restoredCar.setAttribute('draggable', 'true');
+                    restoredCar.style.backgroundImage = `url('${carImages[originId]}')`;
+                    restoredCar.style.width = "100%";
+                    restoredCar.style.height = "100%";
+                    
+                    restoredCar.addEventListener('click', function(ev) {
+                        ev.stopPropagation();
+                        this.remove();
+                        saveFactoryMemory();
+                    });
+                    
+                    restoredCar.addEventListener('dragstart', function(ev) {
+                        ev.dataTransfer.setData('text/plain', this.id);
+                        ev.dataTransfer.setData('source', 'deployed');
+                    });
+
+                    if (slot.classList.contains('right-slot-spec')) {
+                        restoredCar.classList.add('rotated');
+                    }
+                    
+                    const existingCar = slot.querySelector('.car-model');
+                    if (existingCar) existingCar.remove();
+                    slot.appendChild(restoredCar);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
